@@ -1,0 +1,180 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Echo Example</title>
+</head>
+<body>
+    <p id="guidId"></p>
+    <button id="createLobby" > Create Lobby </button>
+    <form id="form">
+        <br/>
+        <input id="message" autocomplete="off" />
+    </form>
+    <br/>
+    <canvas id="drawCanvas" width="200" height="200" tabindex='1'></canvas>
+    <script>
+
+        var CreateLobbyRequest = 0;
+        var JoinLobbyRequest = 1;
+        var LobbyCreated = 3;
+        var GameStart = 4;
+        var MoveCommand = 5;
+        var UpdateGameState = 6;
+
+        var guid = "";
+        var playerId = 0;
+        var gameStarted = false;
+        var pos_x = 0;
+        var pos_y = 0;
+
+        var canvas = document.getElementById('drawCanvas');
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, 200, 200);
+
+        var paragraph = document.getElementById('guidId');
+
+        var webSocketProtocol = location.protocol == "https:" ? "wss:" : "ws:";
+        var webSocketURI = webSocketProtocol + "//" + location.host + "/lobby";
+
+        var form = document.getElementById('form');
+        var message = document.getElementById('message');
+
+        function buf2hex(buffer) { // buffer is an ArrayBuffer
+            return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+        }
+
+        socket = new WebSocket(webSocketURI);
+
+        socket.onopen = function () {
+            console.log("Connected.");
+        };
+
+        socket.onclose = function (event) {
+            if (event.wasClean) {
+                console.log('Disconnected.');
+            } else {
+                console.log('Connection lost.'); // for example if server processes is killed
+            }
+            console.log('Code: ' + event.code + '. Reason: ' + event.reason);
+        };
+
+        socket.onmessage = function (event) {
+            var reader = new FileReader();
+            reader.onload = function() {
+                console.log("Data received: " + buf2hex(reader.result));
+                var msgIdBytes = reader.result.slice(0, 4);
+                var dv = new DataView(msgIdBytes);
+                var msgId = dv.getInt32(0, true);
+
+                if (msgId == LobbyCreated) {
+                    console.log("lobby created");
+                    var guidBytes = reader.result.slice(4, 16 + 4);
+                    paragraph.innerText = buf2hex(guidBytes);
+                }
+
+                else if (msgId == GameStart) {
+                    console.log("game start");
+                    ctx.fillStyle = "red";
+                    ctx.fillRect(0, 0, 1, 1);
+
+                    ctx.fillStyle = "blue";
+                    ctx.fillRect(0, 0, 1, 1);
+
+                    gameStarted = true;
+                    var guidBytes = reader.result.slice(4, 16 + 4);
+
+                    guid = buf2hex(guidBytes);
+                } else {
+                    console.log("unkown message");
+                }
+
+            }
+            reader.readAsArrayBuffer(event.data);
+        };
+
+        socket.onerror = function (error) {
+            console.log("Error: " + error.message);
+        };
+
+        var button = document.getElementById('createLobby');
+
+        button.onclick = function() {
+            playerId = 0;
+            var msg = new Uint8Array(4);       
+            socket.send(msg.buffer);
+        };
+        
+        form.onsubmit = function () {
+            playerId = 1;
+            var msg = new Uint8Array(4 + 16);
+            msg.fill(0);
+            msg.set([JoinLobbyRequest,0,0,0], 0);
+
+            for (var i = 0; i < 16 ; i++) {
+                var nb1 = parseInt(message.value.charAt(i * 2 + 0), 16);
+                var nb2 = parseInt(message.value.charAt(i * 2 + 1), 16);
+                msg[4 + i] = (nb1 * 16) + nb2;
+            }
+            
+            message.value = '';
+            socket.send(msg.buffer);
+            return false;
+        };
+
+        canvas.addEventListener('keydown', logKey);
+
+        function clamp(num, min, max) {
+            return num <= min ? min : num >= max ? max : num;
+        }
+
+        function logKey(e) {
+            if (gameStarted) {
+                var has_moved = false;
+                if (e.key == "w") {
+                    pos_y--;
+                    pos_y = clamp(pos_y, 0, 199);
+                    has_moved = true;
+                    
+                } else if (e.key == "s") {
+                    pos_y++;
+                    pos_y = clamp(pos_y, 0, 199);
+                    has_moved = true;
+
+                } else if (e.key == "a") {
+                    pos_x--;
+                    pos_x = clamp(pos_x, 0, 199);
+                    has_moved = true;
+                    
+                } else if (e.key == "d") {
+                    pos_x++;
+                    pos_x = clamp(pos_x, 0, 199);
+                    has_moved = true;
+                }
+
+                if (has_moved) {
+                    var msg = new Uint8Array(4 + 16 + 4 + 4 + 4);
+                    msg.fill(0);
+                    msg.set([MoveCommand,0,0,0], 0);
+
+                    for (var i = 0; i < 16 ; i++) {
+                        var nb1 = parseInt(guid.charAt(i * 2 + 0), 16);
+                        var nb2 = parseInt(guid.charAt(i * 2 + 1), 16);
+                        msg[4 + i] = (nb1 * 16) + nb2;
+                    }
+
+                    msg.set([playerId,0,0,0], 20);
+                    msg.set([pos_x,0,0,0], 24);
+                    msg.set([pos_y,0,0,0], 28);
+
+                    //console.log("move " + guid  + " id " + playerId + " pos " + pos_x + ", " + pos_y);
+            
+                    socket.send(msg.buffer);
+                }
+            }
+        }
+
+    </script>
+</body>
+</html>
