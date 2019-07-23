@@ -78,7 +78,6 @@ namespace WebSocketExample
             while (!result.CloseStatus.HasValue)
             {
                 int msgId = BitConverter.ToInt32(buffer, 0);
-                Console.WriteLine("msgId: " + msgId);
                 var answer = await GetAnswer(msgId, buffer, webSocket);
 
                 if (answer != null)
@@ -121,7 +120,8 @@ namespace WebSocketExample
                         GUID.ToByteArray()
                     );
 
-                foreach(var wb in _lobbys[GUID]) {
+                foreach(var wb in _lobbys[GUID]) 
+                {
                     await wb.SendAsync
                     (
                         new ArraySegment<byte>(msg),
@@ -132,7 +132,8 @@ namespace WebSocketExample
                 }
             }
 
-            if (msgId == MoveCommand) {
+            if (msgId == MoveCommand) 
+            {
                 Guid GUID = new Guid(SubArray(buffer, 4, 16));
                 var playerId_bytes = SubArray(buffer, 20, 4);
                 var pos_x_bytes = SubArray(buffer, 24, 4);
@@ -142,10 +143,31 @@ namespace WebSocketExample
                 var pos_x = BitConverter.ToInt32(pos_x_bytes);
                 var pos_y = BitConverter.ToInt32(pos_y_bytes);
 
-                //Console.WriteLine("Guid " + BitConverter.ToString(GUID.ToByteArray()));
-                //Console.WriteLine("Got move command from player " + playerId + ", pos_x " + pos_x + " pos_y " + pos_y);
-                
-                // TODO : send game update command
+                var msg = 
+                    MergeArrays
+                    (
+                        MergeArrays
+                        (
+                            MergeArrays
+                            (
+                                BitConverter.GetBytes(UpdateGameState),
+                                playerId_bytes
+                            ),
+                            pos_x_bytes
+                        ),
+                        pos_y_bytes
+                    );
+
+                foreach(var wb in _lobbys[GUID]) 
+                {
+                    await wb.SendAsync
+                    (
+                        new ArraySegment<byte>(msg),
+                        WebSocketMessageType.Binary, 
+                        true, 
+                        CancellationToken.None
+                    );
+                }
 
             }
 
