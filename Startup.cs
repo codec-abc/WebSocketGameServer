@@ -171,6 +171,11 @@ namespace WebSocketExample
 
             }
 
+            if (msgId == PingRequest) 
+            {
+                return BitConverter.GetBytes(PingAnswer);
+            }
+
             return null;
         }
     }

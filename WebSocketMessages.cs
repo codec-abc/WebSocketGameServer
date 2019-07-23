@@ -10,6 +10,10 @@ public static class WebSocketMessages
     public static readonly int MoveCommand = 5;
 
     public static readonly int UpdateGameState = 6;
+
+    public static readonly int PingRequest = 7;
+
+    public static readonly int PingAnswer = 8;
 }
 
 public static class Utils
